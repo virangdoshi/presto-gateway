@@ -35,6 +35,10 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     HttpClient httpClient = new HttpClient(sslFactory);
     httpClient.setMaxConnectionsPerDestination(10000);
     httpClient.setConnectTimeout(TimeUnit.SECONDS.toMillis(60));
+    // Increase Header buffer size
+    // For prepared statements, Presto sends the prepared query in the header
+    // So, the default buffer size of 4kb is insufficient for large queries
+    httpClient.setRequestBufferSize(65536); //64kb
     return httpClient;
   }
 
