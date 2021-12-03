@@ -39,6 +39,11 @@ public class ProxyServer implements Closeable {
 
   private void setupContext(ProxyServerConfiguration config) {
     ServerConnector connector = null;
+    HttpConfiguration httpConfig = new HttpConfiguration();
+    // Increase Header buffer size
+    // For prepared statements, Presto sends the prepared query in the header
+    // So, the default buffer size of 8kb is insufficient for large queries
+    httpConfig.setRequestHeaderSize(65536); //64kb
 
     if (config.isSsl()) {
       String keystorePath = config.getKeystorePath();
@@ -56,22 +61,21 @@ public class ProxyServer implements Closeable {
         sslContextFactory.setKeyManagerPassword(keystorePass);
       }
 
-      HttpConfiguration httpsConfig = new HttpConfiguration();
-      httpsConfig.setSecureScheme(HttpScheme.HTTPS.asString());
-      httpsConfig.setSecurePort(config.getLocalPort());
-      httpsConfig.setOutputBufferSize(32768);
+      httpConfig.setSecureScheme(HttpScheme.HTTPS.asString());
+      httpConfig.setSecurePort(config.getLocalPort());
+      httpConfig.setOutputBufferSize(32768);
 
       SecureRequestCustomizer src = new SecureRequestCustomizer();
       src.setStsMaxAge(TimeUnit.SECONDS.toSeconds(2000));
       src.setStsIncludeSubDomains(true);
-      httpsConfig.addCustomizer(src);
+      httpConfig.addCustomizer(src);
       connector =
           new ServerConnector(
               server,
               new SslConnectionFactory(sslContextFactory, HttpVersion.HTTP_1_1.asString()),
-              new HttpConnectionFactory(httpsConfig));
+              new HttpConnectionFactory(httpConfig));
     } else {
-      connector = new ServerConnector(server);
+      connector = new ServerConnector(server, new HttpConnectionFactory(httpConfig));
     }
     connector.setHost("0.0.0.0");
     connector.setPort(config.getLocalPort());
