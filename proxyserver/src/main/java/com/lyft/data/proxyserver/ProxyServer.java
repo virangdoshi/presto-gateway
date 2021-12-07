@@ -43,7 +43,7 @@ public class ProxyServer implements Closeable {
     // Increase Header buffer size
     // For prepared statements, Presto sends the prepared query in the header
     // So, the default buffer size of 8kb is insufficient for large queries
-    httpConfig.setRequestHeaderSize(65536); //64kb
+    httpConfig.setRequestHeaderSize(1048576); //1MB
 
     if (config.isSsl()) {
       String keystorePath = config.getKeystorePath();
