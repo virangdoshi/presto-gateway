@@ -38,7 +38,7 @@ public class ProxyServletImpl extends ProxyServlet.Transparent {
     // Increase Header buffer size
     // For prepared statements, Presto sends the prepared query in the header
     // So, the default buffer size of 4kb is insufficient for large queries
-    httpClient.setRequestBufferSize(65536); //64kb
+    httpClient.setRequestBufferSize(1048576); //1MB
     return httpClient;
   }
 
