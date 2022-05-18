@@ -87,7 +87,7 @@ public class ActiveClusterMonitor implements Managed {
     String[] possiblePaths = new String[] {UI_API_STATS_PATH, "/v1/cluster"};
     String dynpath = ""; //Path Based on Presto and Trino cluster
     for (String path : possiblePaths) {
-      if backend.getProxyTo().contains("trino") or backend.getProxyTo().contains("dashboard") {
+      if ( backend.getProxyTo().contains("trino") || backend.getProxyTo().contains("dashboard") ) {
         dynpath = UI_API_STATS_PATH;
       } else {
         dynpath = "/v1/cluster";
