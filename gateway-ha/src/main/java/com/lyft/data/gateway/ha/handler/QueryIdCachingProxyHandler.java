@@ -4,12 +4,14 @@ import com.codahale.metrics.Meter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 import com.google.common.io.CharStreams;
+import com.google.common.net.HttpHeaders;
 import com.lyft.data.gateway.ha.router.QueryHistoryManager;
 import com.lyft.data.gateway.ha.router.RoutingManager;
 import com.lyft.data.proxyserver.ProxyHandler;
 import com.lyft.data.proxyserver.wrapper.MultiReadHttpServletRequest;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -31,6 +33,7 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
   public static final String V1_INFO_PATH = "/v1/info";
   public static final String UI_API_STATS_PATH = "/ui/api/stats";
   public static final String PRESTO_UI_PATH = "/ui";
+
   // Add support for Trino
   public static final String USER_HEADER = "X-Trino-User";
   public static final String ALTERNATE_USER_HEADER = "X-Presto-User";
@@ -154,6 +157,11 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     return targetLocation;
   }
 
+  /**
+   * Extracts the queryId from the server requests if it is present.
+   * @param request The request made
+   * @return The queryId (if present)
+   */
   protected String extractQueryIdIfPresent(HttpServletRequest request) {
     String path = request.getRequestURI();
     String queryParams = request.getQueryString();
@@ -178,12 +186,32 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     } catch (Exception e) {
       log.error("Error extracting query payload from request", e);
     }
+    
+    log.debug("Trying to extract query id from path [{}] or queryString [{}]", path, queryParams);
+    String queryId = extractQueryIdIfPresent(path, queryParams);
+    if (queryId == null && !Strings.isNullOrEmpty(request.getHeader(HttpHeaders.REFERER))) {
+      log.debug("Trying to extract query id from referer [{}]", 
+          request.getHeader(HttpHeaders.REFERER));
+      queryId = extractQueryIdFromReferer(request.getHeader(HttpHeaders.REFERER));
+    }
+
+    log.debug("query id in url [{}]", queryId);
+    return queryId;
+  }
+
+  /**
+   * Extracts the queryId from the path of a request and the parameters of the query.
+   * @param path Path of request
+   * @param queryParams Query parameters
+   * @return The queryId (if present)
+   */
+  protected String extractQueryIdIfPresent(String path, String queryParams) {
     if (path == null) {
       return null;
     }
+
     String queryId = null;
 
-    log.debug("trying to extract query id from path [{}] or queryString [{}]", path, queryParams);
     if (path.startsWith(V1_STATEMENT_PATH) || path.startsWith(V1_QUERY_PATH)) {
       String[] tokens = path.split("/");
       if (tokens.length >= 4) {
@@ -199,8 +227,26 @@ public class QueryIdCachingProxyHandler extends ProxyHandler {
     } else if (path.startsWith(PRESTO_UI_PATH)) {
       queryId = queryParams;
     }
-    log.debug("query id in url [{}]", queryId);
+
     return queryId;
+  }
+
+  /**
+   * Extracts the queryId from the referer of the request.
+   * @param referer Request referer
+   * @return The queryId of the request
+   */
+  protected String extractQueryIdFromReferer(String referer) {
+    try {
+      URL refUrl = new URL(referer);
+      if (refUrl.getPath().startsWith(PRESTO_UI_PATH)) {
+        return refUrl.getQuery();
+      }
+    } catch (Exception e) {
+      log.debug("Unable to extract query id from referer");
+    }
+
+    return null;
   }
 
   protected void postConnectionHook(
